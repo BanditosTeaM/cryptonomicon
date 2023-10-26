@@ -33,6 +33,7 @@ export default {
 
 		handleDelete(tickerToRemove) {
 			this.tickers = this.tickers.filter(t => t != tickerToRemove)
+			this.actualTicker = null
 		},
 
 		normalizeGraph() {
@@ -93,14 +94,12 @@ export default {
 								v-model="ticker"
 								type="text"
 								name="wallet"
-								class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
+								class="block w-full pr-10 p-2 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
 								placeholder="Например DOGE"
 								@keydown.enter="add(ticker)"
 							/>
 						</div>
-						<!-- <div
-							class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
-						>
+						<div class="flex bg-white shadow-md p-1 rounded-md flex-wrap">
 							<span
 								class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
 							>
@@ -122,7 +121,7 @@ export default {
 								CHD
 							</span>
 						</div>
-						<div class="text-sm text-red-600">Такой тикер уже добавлен</div> -->
+						<!-- <div class="text-sm text-red-600">Такой тикер уже добавлен</div> -->
 					</div>
 				</div>
 				<button
