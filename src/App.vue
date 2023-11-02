@@ -12,30 +12,89 @@ export default {
 			isLoading: false,
 			errorInputTicker: false,
 			page: 1,
-			filter: '',
-			hasNextPage: true
+			filter: ''
 		}
 	},
-	watch: {
-		filter() {
-			this.page = 1
-			window.history.pushState(
-				null,
-				document.title,
-				`${window.location.pathname}?filter=${this.filter}?page=${this.page}`
+
+	computed: {
+		startIndex() {
+			return (this.page - 1) * 6
+		},
+
+		endIndex() {
+			return 6 * this.page
+		},
+
+		filteredTickers() {
+			return this.tickers.filter(ticker => ticker.name.includes(this.filter))
+		},
+
+		paginatedTickers() {
+			return this.filteredTickers.slice(this.startIndex, this.endIndex)
+		},
+
+		hasNextPage() {
+			return this.filteredTickers.length > this.endIndex
+		},
+
+		normalizedGraph() {
+			const maxValue = Math.max(...this.graph)
+			const minValue = Math.min(...this.graph)
+			if (maxValue === minValue) {
+				return this.graph.map(() => 50)
+			}
+			return this.graph.map(
+				price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
 			)
 		},
-		page() {
+
+		filteredTickersSymbols() {
+			if (this.tickerSymbol && this.tickerInput) {
+				return this.tickerSymbol
+					.filter(option => option.Symbol.includes(this.tickerInput))
+					.slice(0, 4)
+			}
+			return []
+		},
+		pageStateOptions() {
+			return {
+				filter: this.filter,
+				page: this.page
+			}
+		}
+	},
+
+	watch: {
+		tickers() {
+			localStorage.setItem('tikers-list', JSON.stringify(this.tickers))
+		},
+		actualTicker() {
+			this.graph = []
+		},
+
+		paginatedTickers() {
+			if (this.paginatedTickers == 0 && this.page > 1) {
+				this.page -= 1
+			}
+		},
+
+		filter() {
+			this.page = 1
+		},
+
+		pageStateOptions(value) {
 			window.history.pushState(
 				null,
 				document.title,
-				`${window.location.pathname}?filter=${this.filter}?page=${this.page}`
+				`${window.location.pathname}?filter=${value.filter}?page=${value.page}`
 			)
 		}
 	},
+
 	mounted() {
 		this.getData()
 	},
+
 	created() {
 		const windowData = Object.fromEntries(
 			new URL(window.location).searchParams.entries()
@@ -52,6 +111,7 @@ export default {
 			this.tickers.forEach(tiker => this.subscrideToUpdates(tiker.name))
 		}
 	},
+
 	methods: {
 		async getData() {
 			this.isLoading = true
@@ -70,15 +130,6 @@ export default {
 				this.isLoading = false
 			}
 		},
-		filteredList() {
-			const start = (this.page - 1) * 6
-			const end = 6 * this.page
-			const filteredTickers = this.tickers.filter(ticker =>
-				ticker.name.includes(this.filter)
-			)
-			this.hasNextPage = filteredTickers.length > end
-			return filteredTickers.slice(start, end)
-		},
 
 		subscrideToUpdates(tikerName) {
 			setInterval(async () => {
@@ -96,15 +147,6 @@ export default {
 			}, 5000)
 		},
 
-		filterTickerSymbols() {
-			if (this.tickerSymbol && this.tickerInput) {
-				return this.tickerSymbol
-					.filter(option => option.Symbol.includes(this.tickerInput))
-					.slice(0, 4)
-			}
-			return []
-		},
-
 		add(ticker) {
 			const checkOnTickers = this.tickers.find(
 				existingTicker => existingTicker.name === ticker
@@ -114,9 +156,7 @@ export default {
 			}
 
 			const newTicker = { name: ticker, price: '-' }
-			this.tickers.push(newTicker)
-
-			localStorage.setItem('tikers-list', JSON.stringify(this.tickers))
+			this.tickers = [...this.tickers, newTicker]
 
 			this.subscrideToUpdates(newTicker.name)
 
@@ -126,16 +166,9 @@ export default {
 
 		handleDelete(tickerToRemove) {
 			this.tickers = this.tickers.filter(ticker => ticker != tickerToRemove)
-			localStorage.setItem('tikers-list', JSON.stringify(this.tickers))
-			this.actualTicker = null
-		},
-
-		normalizeGraph() {
-			const maxValue = Math.max(...this.graph)
-			const minValue = Math.min(...this.graph)
-			return this.graph.map(
-				price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
-			)
+			if (this.actualTicker === tickerToRemove) {
+				this.actualTicker = null
+			}
 		},
 
 		select(ticker) {
@@ -200,11 +233,11 @@ export default {
 							/>
 						</div>
 						<div
-							v-if="filterTickerSymbols().length > 0"
+							v-if="filteredTickersSymbols.length > 0"
 							class="flex bg-white shadow-md p-1 rounded-md flex-wrap"
 						>
 							<span
-								v-for="name in filterTickerSymbols()"
+								v-for="name in filteredTickersSymbols"
 								:key="name.Id"
 								class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
 								@click="add(name.Symbol)"
@@ -273,7 +306,7 @@ export default {
 				<hr class="w-full border-t border-gray-600 my-4" />
 				<dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
 					<div
-						v-for="ticker in filteredList()"
+						v-for="ticker in paginatedTickers"
 						:key="ticker.name"
 						:class="{ 'border-4': actualTicker == ticker }"
 						class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
@@ -320,7 +353,7 @@ export default {
 				</h3>
 				<div class="flex items-end border-gray-600 border-b border-l h-64">
 					<div
-						v-for="(bar, idx) in normalizeGraph()"
+						v-for="(bar, idx) in normalizedGraph"
 						:key="idx"
 						:style="{ height: `${bar}%` }"
 						class="bg-purple-800 border w-10"
