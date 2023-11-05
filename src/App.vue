@@ -1,4 +1,5 @@
 <script>
+import { subscribeToTicker, unsubscribeFromTicker } from './api'
 export default {
 	name: 'App',
 
@@ -68,6 +69,7 @@ export default {
 		tickers() {
 			localStorage.setItem('tikers-list', JSON.stringify(this.tickers))
 		},
+
 		actualTicker() {
 			this.graph = []
 		},
@@ -108,7 +110,11 @@ export default {
 		const tickersData = localStorage.getItem('tikers-list')
 		if (tickersData) {
 			this.tickers = JSON.parse(tickersData)
-			this.tickers.forEach(tiker => this.subscrideToUpdates(tiker.name))
+			this.tickers.forEach(ticker => {
+				subscribeToTicker(ticker.name, newPrice => {
+					this.updateTicker(ticker.name, newPrice)
+				})
+			})
 		}
 	},
 
@@ -131,34 +137,39 @@ export default {
 			}
 		},
 
-		subscrideToUpdates(tikerName) {
-			setInterval(async () => {
-				const f = await fetch(
-					`https://min-api.cryptocompare.com/data/price?fsym=${tikerName}&tsyms=USD&api_key=1d0ed17d0f842b76e54de749ff21c746b7e0d933a6c012c86e4e71a5dcd157d1`
-				)
-				const data = await f.json()
-
-				this.tickers.find(t => t.name === tikerName).price =
-					data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
-
-				if (this.actualTicker?.name === tikerName) {
-					this.graph.push(data.USD)
-				}
-			}, 5000)
+		formatPrice(price) {
+			if (price === '-') {
+				return price
+			}
+			return price > 1 ? price.toFixed(2) : price.toPrecision(2)
 		},
 
-		add(ticker) {
+		updateTicker(tickerName, price) {
+			this.tickers
+				.filter(ticker => ticker.name === tickerName)
+				.forEach(ticker => {
+					if (ticker === this.actualTicker) {
+						this.graph.push(price)
+					}
+					ticker.price = price
+				})
+		},
+
+		add() {
 			const checkOnTickers = this.tickers.find(
-				existingTicker => existingTicker.name === ticker
+				existingTicker => existingTicker.name === this.ticker
 			)
 			if (checkOnTickers) {
 				return (this.errorInputTicker = true)
 			}
 
-			const newTicker = { name: ticker, price: '-' }
+			const newTicker = { name: this.ticker, price: '-' }
+
 			this.tickers = [...this.tickers, newTicker]
 
-			this.subscrideToUpdates(newTicker.name)
+			subscribeToTicker(newTicker.name, newPrice => {
+				this.updateTicker(newTicker.name, newPrice)
+			})
 
 			this.tickerInput = ''
 			this.filter = ''
@@ -169,6 +180,7 @@ export default {
 			if (this.actualTicker === tickerToRemove) {
 				this.actualTicker = null
 			}
+			unsubscribeFromTicker(tickerToRemove.name)
 		},
 
 		select(ticker) {
@@ -228,7 +240,7 @@ export default {
 								name="wallet"
 								class="block w-full pr-10 p-2 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
 								placeholder="Например DOGE"
-								@keydown.enter="add(tickerInput)"
+								@keydown.enter="add()"
 								@input="clearError"
 							/>
 						</div>
@@ -240,7 +252,7 @@ export default {
 								v-for="name in filteredTickersSymbols"
 								:key="name.Id"
 								class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-								@click="add(name.Symbol)"
+								@click="add((ticker = name.Symbol))"
 							>
 								{{ name.Symbol }}
 							</span>
@@ -256,7 +268,7 @@ export default {
 				<button
 					type="button"
 					class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-					@click="add(tickerInput)"
+					@click="add()"
 				>
 					<svg
 						class="-ml-0.5 mr-2 h-6 w-6"
@@ -317,7 +329,7 @@ export default {
 								{{ ticker.name }} - USD
 							</dt>
 							<dd class="mt-1 text-3xl font-semibold text-gray-900">
-								{{ ticker.price }}
+								{{ formatPrice(ticker.price) }}
 							</dd>
 						</div>
 						<div class="w-full border-t border-gray-200"></div>
